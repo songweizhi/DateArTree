@@ -322,301 +322,116 @@ def check_a_is_child_of_b(tree_file, node_a, node_b):
     return a_is_child_of_b
 
 
-########################################################################################################################
+def prepare_ale_ip_worker(arg_list):
 
-# file in
-wd                              = '/Users/songweizhi/Desktop/DateArTree/0_HGT_MetaCHIP'
-orthogroups_op_txt              = '%s/Orthogroups.txt'                                                  % wd
-taxon_for_MetaCHIP_txt          = '%s/taxon_for_MetaCHIP.txt'                                           % wd
-combined_faa                    = '%s/Archaea_133_HGT_pc_pc_combined_faa.fasta'                         % wd
-genome_tree_file                = '%s/concatenated.treefile'                                            % wd
-outgroup                        = '%s/out_group.txt'                                                    % wd
-min_og_genome_num               = 50
-min_og_phylum_num               = 2
-align_leaf_name                 = True
-show_scale                      = False
-ignore_leaf_hgt                 = True
-project_name                    = 'batch_access_tmp'
-API_key                         = 'S1kZZuDHc0d5M7J5vLnUNQ'
-display_mode                    = '1'  # 1=rectangular, 2=circular, 3=unrooted
-hgt_freq_cutoff                 = 0.3
-num_threads                     = 10
-js_num_threads                  = 2
-interal_node_prefix             = 'IN'
-ale_splitter_py                 = '/home-user/wzsong/Tests/ALE/ALEtutorial/ale_splitter_modified.py'
-ignore_vertical_hgt             = True
-donor_node_min_leaf_num         = 5
-recipient_node_min_leaf_num     = 5
-d_color                         = '#FF0000'
-r_color                         = '#0000FF'
+    qualified_og            = arg_list[0]
+    gene_tree_dir           = arg_list[1]
+    ale_wd                  = arg_list[2]
+    genome_tree_file_rooted = arg_list[3]
+    gnm_pco_dict            = arg_list[4]
+    ale_splitter_py         = arg_list[5]
 
-# file out
-op_dir                          = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/op_qualified_OGs'
-gene_tree_dir                   = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/op_qualified_OGs_gene_tree_dir'
-genome_tree_file_rooted         = '%s/concatenated_rooted.treefile'                                                 % op_dir
-ale_wd                          = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_wd'
-ale_op_dir                      = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_op_dir'
-ale_hgt_plot_dir                = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_hgt_plot_dir'
+    genome_tree_file_subset             = '%s_genome_tree.treefile'             % qualified_og
+    genome_tree_file_subset_for_ale     = '%s_genome_tree_for_ALE.treefile'     % qualified_og
+    gene_tree_ufboot                    = '%s.ufboot'                           % qualified_og
+    gene_tree_ufboot_for_ale            = '%s_for_ALE.ufboot'                   % qualified_og
+    gene_tree_treefile                  = '%s.treefile'                         % qualified_og
+    gene_tree_treefile_subset           = '%s_subset.treefile'                  % qualified_og
+    js_ale                              = '/zjs_%s_ALE.sh'                      % qualified_og
+    pwd_genome_tree_file_subset         = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, genome_tree_file_subset)
+    pwd_genome_tree_file_subset_for_ale = '%s/%s'                               % (ale_wd, genome_tree_file_subset_for_ale)
+    pwd_gene_tree_ufboot                = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_ufboot)
+    pwd_gene_tree_ufboot_for_ale        = '%s/%s'                               % (ale_wd, gene_tree_ufboot_for_ale)
+    pwd_gene_tree_treefile              = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_treefile)
+    pwd_gene_tree_treefile_subset       = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_treefile_subset)
+    pwd_js_ale                          = '%s/%s'                               % (ale_wd, js_ale)
 
-########################################################################################################################
-
-force_create_op_dir             = True
-force_create_ale_wd             = True
-extract_sequence                = False
-prepare_ale_input_files         = False
-
-# specify OGs to process
-# designate_ogs                   = ['OG0000006', 'OG0000007', 'OG0000011', 'OG0000012', 'OG0000014', 'OG0000015', 'OG0000017']
-designate_ogs                   = next(os.walk(gene_tree_dir))[1]
-#designate_ogs                   = ['OG0000408']
-
-'''
-The number of orthogroups spanning >= 50 genomes and >= 2 phyla is 763.
-
-OG0000294 is very interesting!!!
-'''
-
-########################################################################################################################
-
-if force_create_op_dir is True:
-    if os.path.isdir(op_dir) is True:
-        os.system('rm -r %s' % op_dir)
-os.system('mkdir %s' % op_dir)
-
-# root genome tree with outgroup
-root_with_out_group(genome_tree_file, outgroup, genome_tree_file_rooted)
-
-# read in genome taxonomy
-gnm_p_dict = dict()
-gnm_c_dict = dict()
-gnm_o_dict = dict()
-gnm_pco_dict = dict()
-for each_gnm in open(taxon_for_MetaCHIP_txt):
-    each_gnm_split = each_gnm.strip().split('\t')
-    gnm_id     = each_gnm_split[0]
-    taxon_str  = each_gnm_split[1]
-    gnm_phylum = taxon_str.split(';')[1]
-    gnm_class  = taxon_str.split(';')[2]
-    gnm_order  = taxon_str.split(';')[3]
-    gnm_id_new = gnm_id
-    if '.gtdb' in gnm_id_new:
-        gnm_id_new = gnm_id_new.replace('.gtdb', '')
-    gnm_p_dict[gnm_id_new] = gnm_phylum
-    gnm_c_dict[gnm_id_new] = gnm_class
-    gnm_o_dict[gnm_id_new] = gnm_order
-    gnm_pco_dict[gnm_id_new] = '%s__%s__%s__%s' % (gnm_phylum[3:], gnm_class[3:], gnm_order[3:], gnm_id_new)
-
-# read in OrthoFinder output
-ortho_to_gene_dict = dict()
-gene_to_ortho_dict = dict()
-for each_og in open(orthogroups_op_txt):
-    each_og_split = each_og.strip().split(' ')
-    og_id = each_og_split[0][:-1]
-    gene_list = each_og_split[1:]
-    ortho_to_gene_dict[og_id] = gene_list
-    for each_gene in gene_list:
-        gene_to_ortho_dict[each_gene] = og_id
-
-# get qualified orthogroups
-qualified_og_set = set()
-for each_ortho in ortho_to_gene_dict:
-    ortho_gene_set = ortho_to_gene_dict[each_ortho]
-    ortho_p_set = set()
-    ortho_gnm_set = set()
-    for each_gene in ortho_gene_set:
-        gene_gnm = '_'.join(each_gene.split('_')[:-1]).replace('.gtdb', '')
-        gnm_taxon = gnm_p_dict[gene_gnm]
-        ortho_gnm_set.add(gene_gnm)
-        ortho_p_set.add(gnm_taxon)
-    if (len(ortho_gnm_set) >= min_og_genome_num) and (len(ortho_p_set) >= min_og_phylum_num):
-        qualified_og_set.add(each_ortho)
-print('The total number of identified orthogroups is %s.' % len(ortho_to_gene_dict))
-print('The number of orthogroups spanning >= %s genomes and >= %s phyla is %s.' % (min_og_genome_num, min_og_phylum_num, len(qualified_og_set)))
-
-# process qualified OG
-og_to_process = sorted([i for i in qualified_og_set])
-if len(designate_ogs) > 0:
-    print('The number of designated OGs to process: %s' % len(designate_ogs))
-    og_to_process = designate_ogs
-
-# extract gene sequences and prepare commands for building gene tree
-print('Extracting sequences and preparing commands for building gene trees')
-extract_seq_arg_lol = []
-for qualified_og in og_to_process:
-    qualified_og_gene_set         = ortho_to_gene_dict[qualified_og]
-    qualified_og_gene_txt         = '%s/%s.txt'           % (op_dir, qualified_og)
-    qualified_og_gene_faa         = '%s/%s.faa'           % (op_dir, qualified_og)
-    qualified_og_gene_aln         = '%s/%s.aln'           % (op_dir, qualified_og)
-    qualified_og_gene_aln_trimmed = '%s/%s_trimmed.aln'   % (op_dir, qualified_og)
-    js_file                       = '%s/zjs_%s.sh'        % (op_dir, qualified_og)
-
-    # write out the id of genes
-    with open(qualified_og_gene_txt, 'w') as qualified_og_gene_txt_handle:
-        qualified_og_gene_txt_handle.write('\n'.join(qualified_og_gene_set))
-
-    # add to mp lol
-    extract_seq_arg_lol.append([combined_faa, qualified_og_gene_txt, qualified_og_gene_faa])
-
-    # write out js for mafft, trimal and iqtree
-    mafft_cmd          = 'mafft-einsi --thread %s --quiet %s > %s'                          % (js_num_threads, qualified_og_gene_faa, qualified_og_gene_aln)
-    trimal_cmd         = 'trimal -in %s -out %s -automated1'                                % (qualified_og_gene_aln, qualified_og_gene_aln_trimmed)
-    iqtree_cmd         = 'iqtree -m LG+G+I -bb 1000 --wbtl -nt %s -s %s -pre %s'            % (js_num_threads, qualified_og_gene_aln, qualified_og)
-    iqtree_cmd_trimmed = 'iqtree -m LG+G+I -bb 1000 --wbtl -nt %s -s %s -pre %s_trimmed'    % (js_num_threads, qualified_og_gene_aln_trimmed, qualified_og)
-    mv_file_cmd_1      = 'mkdir %s'                                                         % (qualified_og)
-    mv_file_cmd_2      = 'mv %s.* %s/'                                                      % (qualified_og, qualified_og)
-    js_file_handle = open(js_file, 'w')
-    js_file_handle.write('#!/bin/bash\n#SBATCH --ntasks 1\n#SBATCH --cpus-per-task %s\n' % js_num_threads)
-    js_file_handle.write(mafft_cmd.replace((op_dir + '/'), '') + '\n')
-    # js_file_handle.write(trimal_cmd.replace((op_dir + '/'), '') + '\n')
-    # js_file_handle.write(iqtree_cmd_trimmed.replace((op_dir + '/'), '') + '\n')
-    js_file_handle.write(iqtree_cmd.replace((op_dir + '/'), '') + '\n')
-    js_file_handle.write(mv_file_cmd_1 + '\n')
-    js_file_handle.write(mv_file_cmd_2 + '\n')
-    js_file_handle.close()
-
-# extract gene sequences with multiprocessing
-if extract_sequence is True:
-    print('Extracting gene sequences with %s cores' % num_threads)
-    pool = mp.Pool(processes=num_threads)
-    pool.map(select_seq, extract_seq_arg_lol)
-    pool.close()
-    pool.join()
-
-########################################################################################################################
-
-# prepare input files and job script for running ALE
-if prepare_ale_input_files is True:
-
-    if force_create_ale_wd is True:
-        if os.path.isdir(ale_wd) is True:
-            os.system('rm -r %s' % ale_wd)
-    os.system('mkdir %s' % ale_wd)
-    n = 1
-    for qualified_og in og_to_process:
-
-        genome_tree_file_subset             = '%s_genome_tree.treefile'             % qualified_og
-        genome_tree_file_subset_for_ale     = '%s_genome_tree_for_ALE.treefile'     % qualified_og
-        gene_tree_ufboot                    = '%s.ufboot'                           % qualified_og
-        gene_tree_ufboot_for_ale            = '%s_for_ALE.ufboot'                   % qualified_og
-        gene_tree_treefile                  = '%s.treefile'                         % qualified_og
-        gene_tree_treefile_subset           = '%s_subset.treefile'                  % qualified_og
-        js_ale                              = '/zjs_%s_ALE.sh'                      % qualified_og
-        #genome_tree_file_subset_png         = '%s_genome_tree.treefile.png'         % qualified_og
-        #gene_tree_treefile_subset_png       = '%s_subset.treefile.png'              % qualified_og
-        #combined_image                      = '%s_combined_trees.png'               % qualified_og
-        #genome_tree_file_subset_pdf         = '%s_genome_tree.treefile.pdf'         % qualified_og
-        #gene_tree_treefile_subset_pdf       = '%s_subset.treefile.pdf'              % qualified_og
-        #combined_pdf                        = '%s_combined_trees.pdf'               % qualified_og
-
-        pwd_genome_tree_file_subset         = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, genome_tree_file_subset)
-        pwd_genome_tree_file_subset_for_ale = '%s/%s'                               % (ale_wd, genome_tree_file_subset_for_ale)
-        pwd_gene_tree_ufboot                = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_ufboot)
-        pwd_gene_tree_ufboot_for_ale        = '%s/%s'                               % (ale_wd, gene_tree_ufboot_for_ale)
-        pwd_gene_tree_treefile              = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_treefile)
-        pwd_gene_tree_treefile_subset       = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_treefile_subset)
-        #pwd_genome_tree_file_subset_png     = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, genome_tree_file_subset_png)
-        #pwd_gene_tree_treefile_subset_png   = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_treefile_subset_png)
-        #pwd_combined_image                  = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, combined_image)
-        #pwd_genome_tree_file_subset_pdf     = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, genome_tree_file_subset_pdf)
-        #pwd_gene_tree_treefile_subset_pdf   = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, gene_tree_treefile_subset_pdf)
-        #pwd_combined_pdf                    = '%s/%s/%s'                            % (gene_tree_dir, qualified_og, combined_pdf)
-        pwd_js_ale                          = '%s/%s'                               % (ale_wd, js_ale)
-
-        if os.path.isfile(pwd_gene_tree_ufboot) is False:
-            print('%s not found, please build gene tree first!' % gene_tree_ufboot)
+    # get genomes on gene tree
+    gene_gnm_set = set()
+    gnm_to_gene_dict = dict()
+    for each_gene in Tree(pwd_gene_tree_treefile).get_leaf_names():
+        gene_gnm = each_gene.split('.gtdb')[0]
+        gene_gnm_set.add(gene_gnm)
+        if gene_gnm not in gnm_to_gene_dict:
+            gnm_to_gene_dict[gene_gnm] = {each_gene}
         else:
-            print('%s (%s/%s): preparing files and job script for running ALE' % (qualified_og, n, len(og_to_process)))
-            n += 1
+            gnm_to_gene_dict[gene_gnm].add(each_gene)
 
-            # get genomes on gene tree
-            gene_gnm_set = set()
-            gnm_to_gene_dict = dict()
-            for each_gene in Tree(pwd_gene_tree_treefile).get_leaf_names():
-                gene_gnm = each_gene.split('.gtdb')[0]
-                gene_gnm_set.add(gene_gnm)
-                if gene_gnm not in gnm_to_gene_dict:
-                    gnm_to_gene_dict[gene_gnm] = {each_gene}
-                else:
-                    gnm_to_gene_dict[gene_gnm].add(each_gene)
+    # subset genome tree
+    genome_tree_leaf_set = Tree(genome_tree_file_rooted).get_leaf_names()
+    gnms_in_both_trees = set(genome_tree_leaf_set).intersection(gene_gnm_set)
+    gnm_tree_subset_str = subset_tree(genome_tree_file_rooted, gnms_in_both_trees, None)
+    gnm_tree_subset_str_for_ale = gnm_tree_subset_str
+    gnm_tree_subset_str_for_ale = gnm_tree_subset_str_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF')
 
-            # subset genome tree
-            genome_tree_leaf_set = Tree(genome_tree_file_rooted).get_leaf_names()
-            gnms_in_both_trees = set(genome_tree_leaf_set).intersection(gene_gnm_set)
-            gnm_tree_subset_str = subset_tree(genome_tree_file_rooted, gnms_in_both_trees, None)
-            gnm_tree_subset_str_for_ale = gnm_tree_subset_str
-            gnm_tree_subset_str_for_ale = gnm_tree_subset_str_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF')
+    # write out genome tree subset
+    with open(pwd_genome_tree_file_subset, 'w') as pwd_genome_tree_file_subset_handle:
+        pwd_genome_tree_file_subset_handle.write(gnm_tree_subset_str)
 
-            # write out genome tree subset
-            with open(pwd_genome_tree_file_subset, 'w') as pwd_genome_tree_file_subset_handle:
-                pwd_genome_tree_file_subset_handle.write(gnm_tree_subset_str)
+    # write out genome tree subset for running ALE
+    with open(pwd_genome_tree_file_subset_for_ale, 'w') as pwd_genome_tree_file_subset_for_ale_handle:
+        pwd_genome_tree_file_subset_for_ale_handle.write(gnm_tree_subset_str_for_ale)
 
-            # write out genome tree subset for running ALE
-            with open(pwd_genome_tree_file_subset_for_ale, 'w') as pwd_genome_tree_file_subset_for_ale_handle:
-                pwd_genome_tree_file_subset_for_ale_handle.write(gnm_tree_subset_str_for_ale)
+    # get genes to keep in gene tree
+    gene_set_to_keep = set()
+    for each_gnm in gnms_in_both_trees:
+        gene_set_to_keep.update(gnm_to_gene_dict.get(each_gnm, set()))
 
-            # get genes to keep in gene tree
-            gene_set_to_keep = set()
-            for each_gnm in gnms_in_both_trees:
-                gene_set_to_keep.update(gnm_to_gene_dict.get(each_gnm, set()))
+    # subset gene_tree.treefile
+    subset_tree(pwd_gene_tree_treefile, gene_set_to_keep, pwd_gene_tree_treefile_subset)
 
-            # subset gene_tree.treefile
-            subset_tree(pwd_gene_tree_treefile, gene_set_to_keep, pwd_gene_tree_treefile_subset)
+    # subset gene_tree.ufboot and rename leaves for running ALE
+    pwd_gene_tree_ufboot_for_ale_handle = open(pwd_gene_tree_ufboot_for_ale, 'w')
+    for each_gene_tree in open(pwd_gene_tree_ufboot):
+        gene_tree_str = each_gene_tree.strip()
+        gene_tree_str_subset_for_ale = subset_tree(gene_tree_str, gene_set_to_keep, None)
+        gene_tree_str_subset_for_ale = gene_tree_str_subset_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF').replace('.gtdb', '')
+        pwd_gene_tree_ufboot_for_ale_handle.write(gene_tree_str_subset_for_ale + '\n')
+    pwd_gene_tree_ufboot_for_ale_handle.close()
 
-            # subset gene_tree.ufboot and rename leaves for running ALE
-            pwd_gene_tree_ufboot_for_ale_handle = open(pwd_gene_tree_ufboot_for_ale, 'w')
-            for each_gene_tree in open(pwd_gene_tree_ufboot):
-                gene_tree_str = each_gene_tree.strip()
-                gene_tree_str_subset_for_ale = subset_tree(gene_tree_str, gene_set_to_keep, None)
-                gene_tree_str_subset_for_ale = gene_tree_str_subset_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF').replace('.gtdb', '')
-                pwd_gene_tree_ufboot_for_ale_handle.write(gene_tree_str_subset_for_ale + '\n')
-            pwd_gene_tree_ufboot_for_ale_handle.close()
+    # get gene tree leaf name dict (for plot)
+    leaf_name_dict = dict()
+    for each_gene in Tree(pwd_gene_tree_treefile_subset).get_leaf_names():
+        gene_id = each_gene
+        gene_id_new = gene_id
+        if '.gtdb' in gene_id_new:
+            gene_id_new = gene_id_new.replace('.gtdb', '')
+        gene_genome = '_'.join(gene_id_new.split('_')[:-1])
+        genome_pco = gnm_pco_dict[gene_genome]
+        gene_id_with_taxon = '%s_%s' % (genome_pco, gene_id.split('_')[-1])
+        leaf_name_dict[gene_id] = gene_id_with_taxon
 
-            # get gene tree leaf name dict (for plot)
-            leaf_name_dict = dict()
-            for each_gene in Tree(pwd_gene_tree_treefile_subset).get_leaf_names():
-                gene_id = each_gene
-                gene_id_new = gene_id
-                if '.gtdb' in gene_id_new:
-                    gene_id_new = gene_id_new.replace('.gtdb', '')
-                gene_genome = '_'.join(gene_id_new.split('_')[:-1])
-                genome_pco = gnm_pco_dict[gene_genome]
-                gene_id_with_taxon = '%s_%s' % (genome_pco, gene_id.split('_')[-1])
-                leaf_name_dict[gene_id] = gene_id_with_taxon
+    # prepare job script for running ALE
+    with open(pwd_js_ale, 'w') as pwd_js_ale_handle:
+        obtain_ale_file_cmd = 'ALEobserve %s'                      % gene_tree_ufboot_for_ale
+        reconciliation_cmd  = 'ALEml_undated %s %s.ale'            % (genome_tree_file_subset_for_ale, gene_tree_ufboot_for_ale)
+        ale_splitter_cmd    = 'python3 %s -i %s.ale.uml_rec -sftr' % (ale_splitter_py, gene_tree_ufboot_for_ale)
+        pwd_js_ale_handle.write('#!/bin/bash\n')
+        pwd_js_ale_handle.write(obtain_ale_file_cmd + '\n')
+        pwd_js_ale_handle.write(reconciliation_cmd + '\n')
+        pwd_js_ale_handle.write(ale_splitter_cmd + '\n')
 
-            # plot and combine genome and gene trees
-            #plot_tree(pwd_genome_tree_file_subset, 'Species tree (rooted)', gnm_pco_dict, dict(), align_leaf_name, show_scale, pwd_genome_tree_file_subset_png)
-            #plot_tree(pwd_gene_tree_treefile_subset, 'Gene tree (unrooted)', leaf_name_dict, dict(), align_leaf_name, show_scale, pwd_gene_tree_treefile_subset_png)
-            #plot_tree(pwd_genome_tree_file_subset, 'Species tree (rooted)', gnm_pco_dict, dict(), align_leaf_name, show_scale, pwd_genome_tree_file_subset_pdf)
-            #plot_tree(pwd_gene_tree_treefile_subset, 'Gene tree (unrooted)', leaf_name_dict, dict(), align_leaf_name, show_scale, pwd_gene_tree_treefile_subset_pdf)
 
-            #merge_image([pwd_genome_tree_file_subset_png, pwd_gene_tree_treefile_subset_png], pwd_combined_image)
-            #merge_pdf(pwd_genome_tree_file_subset_pdf, pwd_gene_tree_treefile_subset_pdf, pwd_combined_pdf)
-            #os.system('rm %s' % pwd_genome_tree_file_subset_png)
-            #os.system('rm %s' % pwd_gene_tree_treefile_subset_png)
+def parse_ale_op_worker(arg_list):
 
-            # prepare job script for running ALE
-            with open(pwd_js_ale, 'w') as pwd_js_ale_handle:
-                obtain_ale_file_cmd = 'ALEobserve %s'                      % gene_tree_ufboot_for_ale
-                reconciliation_cmd  = 'ALEml_undated %s %s.ale'            % (genome_tree_file_subset_for_ale, gene_tree_ufboot_for_ale)
-                ale_splitter_cmd    = 'python3 %s -i %s.ale.uml_rec -sftr' % (ale_splitter_py, gene_tree_ufboot_for_ale)
-                pwd_js_ale_handle.write('#!/bin/bash\n')
-                pwd_js_ale_handle.write(obtain_ale_file_cmd + '\n')
-                pwd_js_ale_handle.write(reconciliation_cmd + '\n')
-                pwd_js_ale_handle.write(ale_splitter_cmd + '\n')
+    qualified_og                = arg_list[0]
+    gene_tree_dir               = arg_list[1]
+    ale_wd                      = arg_list[2]
+    ale_op_dir                  = arg_list[3]
+    ale_hgt_plot_dir            = arg_list[4]
+    interal_node_prefix         = arg_list[5]
+    gnm_pco_dict                = arg_list[6]
+    d_color                     = arg_list[7]
+    r_color                     = arg_list[8]
+    project_name                = arg_list[9]
+    API_key                     = arg_list[10]
+    display_mode                = arg_list[11]
+    hgt_freq_cutoff             = arg_list[12]
+    ignore_leaf_hgt             = arg_list[13]
+    ignore_vertical_hgt         = arg_list[14]
+    donor_node_min_leaf_num     = arg_list[15]
+    recipient_node_min_leaf_num = arg_list[16]
 
-########################################################################################################################
-
-if os.path.isdir(ale_hgt_plot_dir) is True:
-    os.system('rm -r %s' % ale_hgt_plot_dir)
-os.system('mkdir %s' % ale_hgt_plot_dir)
-os.system('mkdir %s/without_HGT' % ale_hgt_plot_dir)
-
-# parse ALE output
-n = 1
-for qualified_og in og_to_process:
-
-    print('%s (%s/%s): Parsing ALE outputs' % (qualified_og, n, len(og_to_process)))
-    n += 1
     gene_tree_treefile                                  = '%s.treefile'                                         % qualified_og
     genome_tree_file_subset_for_ale                     = '%s_genome_tree_for_ALE.treefile'                     % qualified_og
     genome_tree_file_subset_for_ale_png                 = '%s_genome_tree_for_ALE.treefile.png'                 % qualified_og
@@ -736,4 +551,215 @@ for qualified_og in og_to_process:
         itol_tree(pwd_gene_tree_treefile_subset, [pwd_gene_tree_itol_label_txt, pwd_gene_tree_label_color_txt], project_name, API_key, display_mode, pwd_gene_tree_treefile_subset_png)
         merge_pdf(pwd_ale_formatted_gnm_tree_with_len_prefixed_png, pwd_gene_tree_treefile_subset_png, pwd_combined_image_with_ale_hgts)
 
+
 ########################################################################################################################
+
+# file in
+wd                              = '/Users/songweizhi/Desktop/DateArTree/0_HGT_MetaCHIP'
+orthogroups_op_txt              = '%s/Orthogroups.txt'                                                  % wd
+taxon_for_MetaCHIP_txt          = '%s/taxon_for_MetaCHIP.txt'                                           % wd
+combined_faa                    = '%s/Archaea_133_HGT_pc_pc_combined_faa.fasta'                         % wd
+genome_tree_file                = '%s/concatenated.treefile'                                            % wd
+outgroup                        = '%s/out_group.txt'                                                    % wd
+min_og_genome_num               = 50
+min_og_phylum_num               = 2
+align_leaf_name                 = True
+show_scale                      = False
+ignore_leaf_hgt                 = True
+project_name                    = 'batch_access_tmp'
+API_key                         = 'S1kZZuDHc0d5M7J5vLnUNQ'
+display_mode                    = '1'  # 1=rectangular, 2=circular, 3=unrooted
+hgt_freq_cutoff                 = 0.3
+num_threads                     = 10
+js_num_threads                  = 2
+interal_node_prefix             = 'IN'
+ale_splitter_py                 = '/home-user/wzsong/Tests/ALE/ALEtutorial/ale_splitter_modified.py'
+ignore_vertical_hgt             = True
+donor_node_min_leaf_num         = 5
+recipient_node_min_leaf_num     = 5
+d_color                         = '#FF0000'
+r_color                         = '#0000FF'
+
+# file out
+op_dir                          = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/op_qualified_OGs'
+gene_tree_dir                   = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/op_qualified_OGs_gene_tree_dir'
+genome_tree_file_rooted         = '%s/concatenated_rooted.treefile'                                                 % op_dir
+ale_wd                          = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_wd'
+ale_op_dir                      = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_op_dir'
+ale_hgt_plot_dir                = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_hgt_plot_dir'
+
+########################################################################################################################
+
+force_create_op_dir             = True
+force_create_ale_wd             = True
+extract_sequence                = False
+prepare_ale_input_files         = False
+
+# specify OGs to process
+# designate_ogs                   = ['OG0000006', 'OG0000007', 'OG0000011', 'OG0000012', 'OG0000014', 'OG0000015', 'OG0000017']
+designate_ogs                   = next(os.walk(gene_tree_dir))[1]
+#designate_ogs                   = ['OG0000408']
+designate_ogs = [i.strip() for i in open('/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/interestong_OGs.txt')]
+
+'''
+The number of orthogroups spanning >= 50 genomes and >= 2 phyla is 763.
+OG0000294 is very interesting!!!
+'''
+
+########################################################################################################################
+
+if force_create_op_dir is True:
+    if os.path.isdir(op_dir) is True:
+        os.system('rm -r %s' % op_dir)
+os.system('mkdir %s' % op_dir)
+
+# root genome tree with outgroup
+root_with_out_group(genome_tree_file, outgroup, genome_tree_file_rooted)
+
+# read in genome taxonomy
+gnm_p_dict = dict()
+gnm_c_dict = dict()
+gnm_o_dict = dict()
+gnm_pco_dict = dict()
+for each_gnm in open(taxon_for_MetaCHIP_txt):
+    each_gnm_split = each_gnm.strip().split('\t')
+    gnm_id     = each_gnm_split[0]
+    taxon_str  = each_gnm_split[1]
+    gnm_phylum = taxon_str.split(';')[1]
+    gnm_class  = taxon_str.split(';')[2]
+    gnm_order  = taxon_str.split(';')[3]
+    gnm_id_new = gnm_id
+    if '.gtdb' in gnm_id_new:
+        gnm_id_new = gnm_id_new.replace('.gtdb', '')
+    gnm_p_dict[gnm_id_new] = gnm_phylum
+    gnm_c_dict[gnm_id_new] = gnm_class
+    gnm_o_dict[gnm_id_new] = gnm_order
+    gnm_pco_dict[gnm_id_new] = '%s__%s__%s__%s' % (gnm_phylum[3:], gnm_class[3:], gnm_order[3:], gnm_id_new)
+
+# read in OrthoFinder output
+ortho_to_gene_dict = dict()
+gene_to_ortho_dict = dict()
+for each_og in open(orthogroups_op_txt):
+    each_og_split = each_og.strip().split(' ')
+    og_id = each_og_split[0][:-1]
+    gene_list = each_og_split[1:]
+    ortho_to_gene_dict[og_id] = gene_list
+    for each_gene in gene_list:
+        gene_to_ortho_dict[each_gene] = og_id
+
+# get qualified orthogroups
+qualified_og_set = set()
+for each_ortho in ortho_to_gene_dict:
+    ortho_gene_set = ortho_to_gene_dict[each_ortho]
+    ortho_p_set = set()
+    ortho_gnm_set = set()
+    for each_gene in ortho_gene_set:
+        gene_gnm = '_'.join(each_gene.split('_')[:-1]).replace('.gtdb', '')
+        gnm_taxon = gnm_p_dict[gene_gnm]
+        ortho_gnm_set.add(gene_gnm)
+        ortho_p_set.add(gnm_taxon)
+    if (len(ortho_gnm_set) >= min_og_genome_num) and (len(ortho_p_set) >= min_og_phylum_num):
+        qualified_og_set.add(each_ortho)
+print('The total number of identified orthogroups is %s.' % len(ortho_to_gene_dict))
+print('The number of orthogroups spanning >= %s genomes and >= %s phyla is %s.' % (min_og_genome_num, min_og_phylum_num, len(qualified_og_set)))
+
+# process qualified OG
+og_to_process = sorted([i for i in qualified_og_set])
+if len(designate_ogs) > 0:
+    print('The number of designated OGs to process: %s' % len(designate_ogs))
+    og_to_process = designate_ogs
+
+# extract gene sequences and prepare commands for building gene tree
+print('Extracting sequences and preparing commands for building gene trees')
+extract_seq_arg_lol = []
+for qualified_og in og_to_process:
+    qualified_og_gene_set         = ortho_to_gene_dict[qualified_og]
+    qualified_og_gene_txt         = '%s/%s.txt'           % (op_dir, qualified_og)
+    qualified_og_gene_faa         = '%s/%s.faa'           % (op_dir, qualified_og)
+    qualified_og_gene_aln         = '%s/%s.aln'           % (op_dir, qualified_og)
+    qualified_og_gene_aln_trimmed = '%s/%s_trimmed.aln'   % (op_dir, qualified_og)
+    js_file                       = '%s/zjs_%s.sh'        % (op_dir, qualified_og)
+
+    # write out the id of genes
+    with open(qualified_og_gene_txt, 'w') as qualified_og_gene_txt_handle:
+        qualified_og_gene_txt_handle.write('\n'.join(qualified_og_gene_set))
+
+    # add to mp lol
+    extract_seq_arg_lol.append([combined_faa, qualified_og_gene_txt, qualified_og_gene_faa])
+
+    # write out js for mafft, trimal and iqtree
+    mafft_cmd          = 'mafft-einsi --thread %s --quiet %s > %s'                          % (js_num_threads, qualified_og_gene_faa, qualified_og_gene_aln)
+    trimal_cmd         = 'trimal -in %s -out %s -automated1'                                % (qualified_og_gene_aln, qualified_og_gene_aln_trimmed)
+    iqtree_cmd         = 'iqtree -m LG+G+I -bb 1000 --wbtl -nt %s -s %s -pre %s'            % (js_num_threads, qualified_og_gene_aln, qualified_og)
+    iqtree_cmd_trimmed = 'iqtree -m LG+G+I -bb 1000 --wbtl -nt %s -s %s -pre %s_trimmed'    % (js_num_threads, qualified_og_gene_aln_trimmed, qualified_og)
+    mv_file_cmd_1      = 'mkdir %s'                                                         % (qualified_og)
+    mv_file_cmd_2      = 'mv %s.* %s/'                                                      % (qualified_og, qualified_og)
+    js_file_handle = open(js_file, 'w')
+    js_file_handle.write('#!/bin/bash\n#SBATCH --ntasks 1\n#SBATCH --cpus-per-task %s\n' % js_num_threads)
+    js_file_handle.write(mafft_cmd.replace((op_dir + '/'), '') + '\n')
+    # js_file_handle.write(trimal_cmd.replace((op_dir + '/'), '') + '\n')
+    # js_file_handle.write(iqtree_cmd_trimmed.replace((op_dir + '/'), '') + '\n')
+    js_file_handle.write(iqtree_cmd.replace((op_dir + '/'), '') + '\n')
+    js_file_handle.write(mv_file_cmd_1 + '\n')
+    js_file_handle.write(mv_file_cmd_2 + '\n')
+    js_file_handle.close()
+
+# extract gene sequences with multiprocessing
+if extract_sequence is True:
+    print('Extracting gene sequences with %s cores' % num_threads)
+    pool = mp.Pool(processes=num_threads)
+    pool.map(select_seq, extract_seq_arg_lol)
+    pool.close()
+    pool.join()
+
+########################################### Preparing files for running ALE ############################################
+
+# prepare input files and job script for running ALE
+if prepare_ale_input_files is True:
+
+    # create ale_wd
+    if force_create_ale_wd is True:
+        if os.path.isdir(ale_wd) is True:
+            os.system('rm -r %s' % ale_wd)
+    os.system('mkdir %s' % ale_wd)
+
+    prepare_ale_ip_worker_arg_lol = []
+    for qualified_og in og_to_process:
+        pwd_gene_tree_ufboot = '%s/%s/%s.ufboot'  % (gene_tree_dir, qualified_og, qualified_og)
+        if os.path.isfile(pwd_gene_tree_ufboot) is False:
+            print('%s not found, please build gene tree first!' % pwd_gene_tree_ufboot)
+        else:
+            current_arg_list = [qualified_og, gene_tree_dir, ale_wd, genome_tree_file_rooted, gnm_pco_dict, ale_splitter_py]
+            prepare_ale_ip_worker_arg_lol.append(current_arg_list)
+
+    # prepare input files and job script for running ALE with multiprocessing
+    print('Preparing files for running ALE with %s cores' % num_threads)
+    pool = mp.Pool(processes=num_threads)
+    pool.map(prepare_ale_ip_worker, prepare_ale_ip_worker_arg_lol)
+    pool.close()
+    pool.join()
+
+################################################### Parse ALE output ###################################################
+
+if os.path.isdir(ale_hgt_plot_dir) is True:
+    os.system('rm -r %s' % ale_hgt_plot_dir)
+os.system('mkdir %s' % ale_hgt_plot_dir)
+os.system('mkdir %s/without_HGT' % ale_hgt_plot_dir)
+
+# parse ALE output
+n = 1
+for qualified_og in og_to_process:
+    print('%s (%s/%s): Parsing ALE outputs' % (qualified_og, n, len(og_to_process)))
+    current_arg_list = [qualified_og, gene_tree_dir, ale_wd, ale_op_dir, ale_hgt_plot_dir, interal_node_prefix,
+                        gnm_pco_dict, d_color, r_color, project_name, API_key, display_mode, hgt_freq_cutoff,
+                        ignore_leaf_hgt, ignore_vertical_hgt, donor_node_min_leaf_num, recipient_node_min_leaf_num]
+    parse_ale_op_worker(current_arg_list)
+    n += 1
+
+########################################################################################################################
+
+
+
+
+
+

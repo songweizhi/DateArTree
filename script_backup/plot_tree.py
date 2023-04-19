@@ -12,10 +12,12 @@ def subset_tree(tree_file_in, leaves_to_keep_list, tree_file_out):
     subset_tree.write(outfile=tree_file_out)
 
 
+
 def plot_tree(input_tree, tree_title, node_label_dict, node_label_color_dict, align_leaf_label, show_scale, output_plot):
 
     if os.path.isfile(input_tree) is False:
         print('Tree file not found, program exited!')
+        print(input_tree)
         exit()
 
     t = Tree(input_tree)
@@ -64,7 +66,7 @@ def plot_tree(input_tree, tree_title, node_label_dict, node_label_color_dict, al
     t.render(output_plot, w=1200, units="px", tree_style=ts)
 
 
-def combine_images(image_file_list, output_image):
+def merge_image(image_file_list, output_image):
 
     images = [Image.open(x) for x in image_file_list]
     widths, heights = zip(*(i.size for i in images))
@@ -143,7 +145,7 @@ for each_hgt in open(hgt_txt):
 
 plot_tree(species_tree_file, 'Species tree (rooted)', gnm_pco_dict,   species_tree_leaf_color_dict, align_leaf_name, show_scale, species_tree_plot)
 plot_tree(gene_tree_file,    'Gene tree (unrooted)',  leaf_name_dict, gene_tree_leaf_color_dict,    align_leaf_name, show_scale, gene_tree_plot)
-combine_images([species_tree_plot, gene_tree_plot], combined_image)
+merge_image([species_tree_plot, gene_tree_plot], combined_image)
 os.system('rm %s' % species_tree_plot)
 os.system('rm %s' % gene_tree_plot)
 
