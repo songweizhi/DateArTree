@@ -9,6 +9,19 @@ from PyPDF3 import PdfFileWriter, PdfFileReader
 from ete3 import TextFace, TreeStyle, NodeStyle
 
 
+def sep_path_basename_ext(file_in):
+
+    # separate path and file name
+    f_path, file_name = os.path.split(file_in)
+    if f_path == '':
+        f_path = '.'
+
+    # separate file basename and extension
+    f_base, f_ext = os.path.splitext(file_name)
+
+    return f_path, f_base, f_ext
+
+
 def select_seq(arg_list):
 
     seq_file    = arg_list[0]
@@ -135,7 +148,7 @@ def merge_pdf(pdf_1, pdf_2, op_pdf):
     output.write(open(op_pdf, "wb"))
 
 
-def uts_to_itol_connections(genome_tree_file, ale_formatted_gnm_tree, interal_node_prefix, uts_file, freq_cutoff, ignore_leaf_hgt, ignore_vertical_hgt, min_donor_node_leaf_num, min_recipient_node_leaf_num, itol_connection_txt):
+def uts_to_itol_connections(genome_tree_file, ale_formatted_gnm_tree, interal_node_prefix, uts_file, freq_cutoff, ignore_leaf_hgt, ignore_vertical_hgt, donor_node_min_leaf_num, recipient_node_min_leaf_num, itol_connection_txt, dr_separator):
 
     # get internal_node_to_leaf_dict
     internal_node_to_leaf_dict = get_node_to_leaf_dict(ale_formatted_gnm_tree)
@@ -149,15 +162,18 @@ def uts_to_itol_connections(genome_tree_file, ale_formatted_gnm_tree, interal_no
     else:
         print('%s not found!' % genome_tree_file)
 
+    hgt_freq_dict = dict()
+    connection_line_to_write_dict = dict()
     with open(itol_connection_txt, 'w') as itol_connection_txt_handle:
         itol_connection_txt_handle.write('DATASET_CONNECTION\nSEPARATOR TAB\nDATASET_LABEL\tdemo_connections\n')
-        itol_connection_txt_handle.write('COLOR\t#ff0ff0\nDRAW_ARROWS\t1\nARROW_SIZE\t20\nLOOP_SIZE\t100\n')
+        itol_connection_txt_handle.write('COLOR\t#ff0ff0\nDRAW_ARROWS\t1\nARROW_SIZE\t60\nLOOP_SIZE\t100\n')
         itol_connection_txt_handle.write('MAXIMUM_LINE_WIDTH\t10\nCURVE_ANGLE\t45\nCENTER_CURVES\t1\nALIGN_TO_LABELS\t0\nDATA\n')
         for each_line in open(uts_file):
             if not each_line.startswith('#'):
                 each_line_split = each_line.strip().split('\t')
                 donor = each_line_split[0]
                 recipient = each_line_split[1]
+                freq = float(each_line_split[2])
 
                 # add prefix to internal donor node
                 if donor in leaf_id_set:
@@ -171,17 +187,19 @@ def uts_to_itol_connections(genome_tree_file, ale_formatted_gnm_tree, interal_no
                 else:
                     recipient_with_prefix = interal_node_prefix + recipient
 
-                freq = float(each_line_split[2])
+                key_str      = '%s%s%s' % (donor_with_prefix, dr_separator, recipient_with_prefix)
+
+                line_to_write = ''
                 if freq >= freq_cutoff:
                     if ignore_leaf_hgt is False:
                         if ignore_vertical_hgt is False:
-                            itol_connection_txt_handle.write('%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq))
+                            line_to_write = '%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq)
                             qualified_hgt_num += 1
                         else:
                             donor_is_ancestor_of_recipient = check_a_is_ancestor_of_b(ale_formatted_gnm_tree, donor, recipient)
                             donor_is_child_of_recipient    = check_a_is_child_of_b(ale_formatted_gnm_tree, donor, recipient)
                             if (donor_is_ancestor_of_recipient is False) and (donor_is_child_of_recipient is False):
-                                itol_connection_txt_handle.write('%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq))
+                                line_to_write = '%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq)
                                 qualified_hgt_num += 1
                     else:
                         if (each_line_split[0] not in leaf_id_set) and (each_line_split[1] not in leaf_id_set):
@@ -189,18 +207,34 @@ def uts_to_itol_connections(genome_tree_file, ale_formatted_gnm_tree, interal_no
                             recipient_node_leaf_num = len(internal_node_to_leaf_dict.get(recipient, []))
                             if (donor_node_leaf_num >= donor_node_min_leaf_num) and (recipient_node_leaf_num >= recipient_node_min_leaf_num):
                                 if ignore_vertical_hgt is False:
-                                    itol_connection_txt_handle.write('%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq))
+                                    line_to_write = '%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq)
                                     qualified_hgt_num += 1
                                 else:
                                     donor_is_ancestor_of_recipient = check_a_is_ancestor_of_b(ale_formatted_gnm_tree, donor, recipient)
                                     donor_is_child_of_recipient    = check_a_is_child_of_b(ale_formatted_gnm_tree, donor, recipient)
                                     if (donor_is_ancestor_of_recipient is False) and (donor_is_child_of_recipient is False):
-                                        itol_connection_txt_handle.write('%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq))
+                                        line_to_write = '%s\t%s\t%s\t%s\t%s\t%s->%s(%s)\n' % (donor_with_prefix, recipient_with_prefix, freq, '#EB984E', 'normal', donor_with_prefix, recipient_with_prefix, freq)
                                         qualified_hgt_num += 1
-                                        key_str = '%s___%s' % (donor_with_prefix, recipient_with_prefix)
                                         paired_donor_to_recipient_leaf_dict[key_str] = [internal_node_to_leaf_dict.get(donor, []), internal_node_to_leaf_dict.get(recipient, [])]
 
-    return qualified_hgt_num, internal_node_to_leaf_dict, paired_donor_to_recipient_leaf_dict
+                if line_to_write != '':
+                    itol_connection_txt_handle.write(line_to_write)
+                    connection_line_to_write_dict[key_str] = line_to_write
+                    hgt_freq_dict[key_str] = freq
+
+    combined_connection_file_path, combined_connection_file_basename, combined_connection_file_ext = sep_path_basename_ext(itol_connection_txt)
+
+    # write out connections separately
+    for each_connection in connection_line_to_write_dict:
+        pwd_connection_txt = '%s/%s_%s.txt' % (combined_connection_file_path, combined_connection_file_basename, each_connection)
+        pwd_connection_txt_handle = open(pwd_connection_txt, 'w')
+        pwd_connection_txt_handle.write('DATASET_CONNECTION\nSEPARATOR TAB\nDATASET_LABEL\tdemo_connections\n')
+        pwd_connection_txt_handle.write('COLOR\t#ff0ff0\nDRAW_ARROWS\t1\nARROW_SIZE\t60\nLOOP_SIZE\t100\n')
+        pwd_connection_txt_handle.write('MAXIMUM_LINE_WIDTH\t10\nCURVE_ANGLE\t45\nCENTER_CURVES\t1\nALIGN_TO_LABELS\t0\nDATA\n')
+        pwd_connection_txt_handle.write(connection_line_to_write_dict[each_connection] + '\n')
+        pwd_connection_txt_handle.close()
+
+    return internal_node_to_leaf_dict, paired_donor_to_recipient_leaf_dict, hgt_freq_dict
 
 
 def itol_tree(tree_file, annotation_file_list, project_name, APIkey, display_mode, op_plot):
@@ -322,6 +356,13 @@ def check_a_is_child_of_b(tree_file, node_a, node_b):
     return a_is_child_of_b
 
 
+def root_at_midpoint(tree_in, tree_in_rooted):
+    t = Tree(tree_in)
+    midpoint = t.get_midpoint_outgroup()
+    t.set_outgroup(midpoint)
+    t.write(outfile=tree_in_rooted)
+
+
 def prepare_ale_ip_worker(arg_list):
 
     qualified_og            = arg_list[0]
@@ -431,32 +472,28 @@ def parse_ale_op_worker(arg_list):
     ignore_vertical_hgt         = arg_list[14]
     donor_node_min_leaf_num     = arg_list[15]
     recipient_node_min_leaf_num = arg_list[16]
+    dr_separator                = arg_list[17]
+    root_gene_tree_at_midpoint  = arg_list[18]
 
     gene_tree_treefile                                  = '%s.treefile'                                         % qualified_og
     genome_tree_file_subset_for_ale                     = '%s_genome_tree_for_ALE.treefile'                     % qualified_og
-    genome_tree_file_subset_for_ale_png                 = '%s_genome_tree_for_ALE.treefile.png'                 % qualified_og
     gene_tree_ufboot_for_ale                            = '%s_for_ALE.ufboot'                                   % qualified_og
     uts_file                                            = '%s.ale.uTs'                                          % gene_tree_ufboot_for_ale
     uml_rec_file                                        = '%s.ale.uml_rec'                                      % gene_tree_ufboot_for_ale
     ale_formatted_gnm_tree                              = '%s_ALE_formatted_genome_tree.tree'                   % gene_tree_ufboot_for_ale
     ale_formatted_gnm_tree_with_len                     = '%s_ALE_formatted_genome_tree_with_len.tree'          % gene_tree_ufboot_for_ale
     ale_formatted_gnm_tree_with_len_prefixed            = '%s_ALE_formatted_genome_tree_with_len_prefixed.tree' % gene_tree_ufboot_for_ale
-    ale_formatted_gnm_tree_with_len_prefixed_png        = '%s_genome_tree_with_HGT.pdf'                         % qualified_og
-    itol_connection_txt                                 = '%s_iTOL_connection.txt'                              % qualified_og
+    itol_connection_txt_all                             = '%s_iTOL_connection.txt'                              % qualified_og
     itol_label_txt                                      = '%s_iTOL_genome_pco.txt'                              % qualified_og
     gene_tree_itol_label_txt                            = '%s_iTOL_gene_pco.txt'                                % qualified_og
-    gene_tree_treefile_subset_png                       = '%s_subset.treefile.pdf'                              % qualified_og
-    combined_image_with_ale_hgts                        = '%s_combined_tree_with_HGTs.pdf'                      % qualified_og
     gene_tree_treefile_subset                           = '%s_subset.treefile'                                  % qualified_og
-    gnm_tree_label_color_txt                            = '%s_genome_tree_label_color.txt'                      % qualified_og
-    gene_tree_label_color_txt                           = '%s_gene_tree_label_color.txt'                        % qualified_og
+    gene_tree_treefile_subset_midpoint_rooted           = '%s_subset_midpoint_rooted.treefile'                  % qualified_og
+
     pwd_gene_tree_treefile_subset                       = '%s/%s/%s'                                            % (gene_tree_dir, qualified_og, gene_tree_treefile_subset)
-    pwd_gene_tree_treefile_subset_png                   = '%s/%s/%s'                                            % (gene_tree_dir, qualified_og, gene_tree_treefile_subset_png)
+    pwd_gene_tree_treefile_subset_midpoint_rooted       = '%s/%s'                                               % (ale_op_dir, gene_tree_treefile_subset_midpoint_rooted)
     pwd_gene_tree_treefile                              = '%s/%s/%s'                                            % (gene_tree_dir, qualified_og, gene_tree_treefile)
     pwd_genome_tree_file_subset_for_ale                 = '%s/%s'                                               % (ale_op_dir, genome_tree_file_subset_for_ale)
-    pwd_gene_tree_ufboot_for_ale                        = '%s/%s'                                               % (ale_wd, gene_tree_ufboot_for_ale)
-    pwd_genome_tree_file_subset_for_ale_png             = '%s/%s'                                               % (ale_op_dir, genome_tree_file_subset_for_ale_png)
-    pwd_itol_connection_txt                             = '%s/%s'                                               % (ale_hgt_plot_dir, itol_connection_txt)
+    pwd_itol_connection_txt_all                         = '%s/%s'                                               % (ale_hgt_plot_dir, itol_connection_txt_all)
     pwd_itol_label_txt                                  = '%s/%s'                                               % (ale_op_dir, itol_label_txt)
     pwd_gene_tree_itol_label_txt                        = '%s/%s'                                               % (ale_hgt_plot_dir, gene_tree_itol_label_txt)
     pwd_uts_file                                        = '%s/%s'                                               % (ale_op_dir, uts_file)
@@ -464,15 +501,10 @@ def parse_ale_op_worker(arg_list):
     pwd_ale_formatted_gnm_tree                          = '%s/%s'                                               % (ale_op_dir, ale_formatted_gnm_tree)
     pwd_ale_formatted_gnm_tree_with_len                 = '%s/%s'                                               % (ale_op_dir, ale_formatted_gnm_tree_with_len)
     pwd_ale_formatted_gnm_tree_with_len_prefixed        = '%s/%s'                                               % (ale_op_dir, ale_formatted_gnm_tree_with_len_prefixed)
-    pwd_ale_formatted_gnm_tree_with_len_prefixed_png    = '%s/%s'                                               % (ale_wd, ale_formatted_gnm_tree_with_len_prefixed_png)
-    pwd_combined_image_with_ale_hgts                    = '%s/%s'                                               % (ale_hgt_plot_dir, combined_image_with_ale_hgts)
-    pwd_gnm_tree_label_color_txt                        = '%s/%s'                                               % (ale_hgt_plot_dir, gnm_tree_label_color_txt)
-    pwd_gene_tree_label_color_txt                       = '%s/%s'                                               % (ale_hgt_plot_dir, gene_tree_label_color_txt)
 
-    # uts_to_itol_connections
-    qualified_hgt_num = 0
     internal_node_to_leaf_dict = dict()
     paired_donor_to_recipient_leaf_dict = dict()
+    hgt_freq_dict = dict()
     if os.path.isfile(pwd_uts_file) is True:
 
         # write out ALE formatted genome tree
@@ -480,8 +512,7 @@ def parse_ale_op_worker(arg_list):
         with open(pwd_ale_formatted_gnm_tree, 'w') as ale_renamed_species_tree_handle:
             ale_renamed_species_tree_handle.write(renamed_genome_tree_str + '\n')
 
-        qualified_hgt_num, internal_node_to_leaf_dict, paired_donor_to_recipient_leaf_dict = uts_to_itol_connections(pwd_genome_tree_file_subset_for_ale, pwd_ale_formatted_gnm_tree, interal_node_prefix, pwd_uts_file, hgt_freq_cutoff, ignore_leaf_hgt, ignore_vertical_hgt, donor_node_min_leaf_num, recipient_node_min_leaf_num, pwd_itol_connection_txt)
-
+        internal_node_to_leaf_dict, paired_donor_to_recipient_leaf_dict, hgt_freq_dict = uts_to_itol_connections(pwd_genome_tree_file_subset_for_ale, pwd_ale_formatted_gnm_tree, interal_node_prefix, pwd_uts_file, hgt_freq_cutoff, ignore_leaf_hgt, ignore_vertical_hgt, donor_node_min_leaf_num, recipient_node_min_leaf_num, pwd_itol_connection_txt_all, dr_separator)
     else:
         print('%s: uTs file not found, you need to run ALE first!' % qualified_og)
 
@@ -491,65 +522,78 @@ def parse_ale_op_worker(arg_list):
     # prefix_internal_nodes of combined tree
     prefix_internal_nodes(pwd_ale_formatted_gnm_tree_with_len, interal_node_prefix, pwd_ale_formatted_gnm_tree_with_len_prefixed)
 
-    g_to_dr_dict = dict()
-    for each_d2r in paired_donor_to_recipient_leaf_dict:
-        d_gene_list = paired_donor_to_recipient_leaf_dict[each_d2r][0]
-        r_gene_list = paired_donor_to_recipient_leaf_dict[each_d2r][1]
-        for each_d in d_gene_list:
-            if each_d not in g_to_dr_dict:
-                g_to_dr_dict[each_d] = {'d'}
-            else:
-                g_to_dr_dict[each_d].add('d')
-        for each_r in r_gene_list:
-            if each_r not in g_to_dr_dict:
-                g_to_dr_dict[each_r] = {'r'}
-            else:
-                g_to_dr_dict[each_r].add('r')
-
     # write out iTOL label file for gene and genome tree
     pwd_itol_label_txt_handle  = open(pwd_itol_label_txt, 'w')
     pwd_itol_label_txt_handle.write('LABELS\nSEPARATOR TAB\n\nDATA\n')
     pwd_gene_tree_itol_label_txt_handle = open(pwd_gene_tree_itol_label_txt, 'w')
     pwd_gene_tree_itol_label_txt_handle.write('LABELS\nSEPARATOR TAB\n\nDATA\n')
-    pwd_gene_tree_label_color_txt_handle = open(pwd_gene_tree_label_color_txt, 'w')
-    pwd_gene_tree_label_color_txt_handle.write('DATASET_STYLE\nSEPARATOR TAB\nDATASET_LABEL\texample_style\nCOLOR\t#ffff00\n\nDATA\n')
     wrote_gnm_set = set()
     for each_gene in Tree(pwd_gene_tree_treefile).get_leaf_names():
         gene_gnm = each_gene.split('.gtdb')[0]
         gene_name_for_ale = gene_gnm
         gene_name_for_ale = gene_name_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF')
         gene_with_taxon = gnm_pco_dict[gene_gnm]
-
-        gnm_dr = g_to_dr_dict.get(gene_name_for_ale, set())
-        if gnm_dr == {'d'}:
-            pwd_gene_tree_label_color_txt_handle.write('%s\tlabel\tnode\t%s\t1\tnormal\n' % (each_gene, d_color))
-        elif gnm_dr == {'r'}:
-            pwd_gene_tree_label_color_txt_handle.write('%s\tlabel\tnode\t%s\t1\tnormal\n' % (each_gene, r_color))
-        elif len(gnm_dr) == 2:
-            pwd_gene_tree_label_color_txt_handle.write('%s\tlabel\tnode\t%s\t1\tnormal\n' % (each_gene, '#FF7F50'))
-
         if gene_gnm not in wrote_gnm_set:
             pwd_itol_label_txt_handle.write('%s\t%s\n' % (gene_name_for_ale, gene_with_taxon))
             wrote_gnm_set.add(gene_gnm)
         pwd_gene_tree_itol_label_txt_handle.write('%s\t%s_%s\n' % (each_gene, gene_with_taxon, each_gene.split('_')[-1]))
     pwd_itol_label_txt_handle.close()
     pwd_gene_tree_itol_label_txt_handle.close()
-    pwd_gene_tree_label_color_txt_handle.close()
 
-    # write out gnm_tree_label_color_txt
-    pwd_gnm_tree_label_color_txt_handle = open(pwd_gnm_tree_label_color_txt, 'w')
-    pwd_gnm_tree_label_color_txt_handle.write('DATASET_STYLE\nSEPARATOR TAB\nDATASET_LABEL\texample_style\nCOLOR\t#ffff00\n\nDATA\n')
-    for d2r in paired_donor_to_recipient_leaf_dict:
-        pwd_gnm_tree_label_color_txt_handle.write('%s\tlabel\tclade\t%s\t1\tnormal\n' % (d2r.split('___')[0], d_color))
-        pwd_gnm_tree_label_color_txt_handle.write('%s\tlabel\tclade\t%s\t1\tnormal\n' % (d2r.split('___')[1], r_color))
-    pwd_gnm_tree_label_color_txt_handle.close()
+    # root gene tree at midpoint
+    gene_tree_to_plot = pwd_gene_tree_treefile_subset
+    if root_gene_tree_at_midpoint is True:
+        root_at_midpoint(pwd_gene_tree_treefile_subset, pwd_gene_tree_treefile_subset_midpoint_rooted)
+        gene_tree_to_plot = pwd_gene_tree_treefile_subset_midpoint_rooted
 
-    if qualified_hgt_num == 0:
-        os.system('mv %s/%s* %s/without_HGT/' % (ale_hgt_plot_dir, qualified_og, ale_hgt_plot_dir))
-    else:
+    # plot separately
+    n = 1
+    for each_d2r in paired_donor_to_recipient_leaf_dict:
+        each_d2r_freq = hgt_freq_dict[each_d2r]
+        each_d2r_d_list = paired_donor_to_recipient_leaf_dict[each_d2r][0]
+        each_d2r_r_list = paired_donor_to_recipient_leaf_dict[each_d2r][1]
+        pwd_itol_label_txt                                  = '%s/%s_iTOL_genome_pco.txt'               % (ale_op_dir, qualified_og)
+        pwd_gene_tree_itol_label_txt                        = '%s/%s_iTOL_gene_pco.txt'                 % (ale_hgt_plot_dir, qualified_og)
+        pwd_gnm_tree_label_color_txt                        = '%s/%s_iTOL_label_color_genome_%s.txt'    % (ale_hgt_plot_dir, qualified_og, each_d2r)
+        pwd_gene_tree_label_color_txt                       = '%s/%s_iTOL_label_color_gene_%s.txt'      % (ale_hgt_plot_dir, qualified_og, each_d2r)
+        pwd_itol_connection_txt                             = '%s/%s_iTOL_connection_%s.txt'            % (ale_hgt_plot_dir, qualified_og, each_d2r)
+        pwd_ale_formatted_gnm_tree_with_len_prefixed_png    = '%s/%s_genome_tree_with_HGT_%s.pdf'       % (ale_wd, qualified_og, each_d2r)
+        pwd_gene_tree_treefile_subset_png                   = '%s/%s_subset_%s.pdf'                     % (ale_hgt_plot_dir, qualified_og, each_d2r)
+        pwd_gene_tree_treefile_subset_png_rooted            = '%s/%s_subset_%s_rooted.pdf'              % (ale_hgt_plot_dir, qualified_og, each_d2r)
+        pwd_combined_image_with_ale_hgts                    = '%s/%s_HGT_%s_%s_%s.pdf'                  % (ale_hgt_plot_dir, qualified_og, n, each_d2r, each_d2r_freq)
+
+        # write out gnm_tree_label_color_txt
+        pwd_gnm_tree_label_color_txt_handle = open(pwd_gnm_tree_label_color_txt, 'w')
+        pwd_gnm_tree_label_color_txt_handle.write('DATASET_STYLE\nSEPARATOR TAB\nDATASET_LABEL\texample_style\nCOLOR\t#ffff00\n\nDATA\n')
+        pwd_gnm_tree_label_color_txt_handle.write('%s\tlabel\tclade\t%s\t1\tnormal\n' % (each_d2r.split(dr_separator)[0], d_color))
+        pwd_gnm_tree_label_color_txt_handle.write('%s\tlabel\tclade\t%s\t1\tnormal\n' % (each_d2r.split(dr_separator)[1], r_color))
+        pwd_gnm_tree_label_color_txt_handle.close()
+
+        # write out iTOL label file for gene and genome tree
+        pwd_gene_tree_label_color_txt_handle = open(pwd_gene_tree_label_color_txt, 'w')
+        pwd_gene_tree_label_color_txt_handle.write('DATASET_STYLE\nSEPARATOR TAB\nDATASET_LABEL\texample_style\nCOLOR\t#ffff00\n\nDATA\n')
+        for each_gene in Tree(pwd_gene_tree_treefile).get_leaf_names():
+            gene_name_for_ale = each_gene.split('.gtdb')[0]
+            gene_name_for_ale = gene_name_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF')
+            if gene_name_for_ale in each_d2r_d_list:
+                pwd_gene_tree_label_color_txt_handle.write('%s\tlabel\tnode\t%s\t1\tnormal\n' % (each_gene, d_color))
+            elif gene_name_for_ale in each_d2r_r_list:
+                pwd_gene_tree_label_color_txt_handle.write('%s\tlabel\tnode\t%s\t1\tnormal\n' % (each_gene, r_color))
+        pwd_gene_tree_label_color_txt_handle.close()
+
         itol_tree(pwd_ale_formatted_gnm_tree_with_len_prefixed, [pwd_gnm_tree_label_color_txt, pwd_itol_label_txt, pwd_itol_connection_txt], project_name, API_key, display_mode, pwd_ale_formatted_gnm_tree_with_len_prefixed_png)
-        itol_tree(pwd_gene_tree_treefile_subset, [pwd_gene_tree_itol_label_txt, pwd_gene_tree_label_color_txt], project_name, API_key, display_mode, pwd_gene_tree_treefile_subset_png)
+        itol_tree(gene_tree_to_plot, [pwd_gene_tree_itol_label_txt, pwd_gene_tree_label_color_txt], project_name, API_key, display_mode, pwd_gene_tree_treefile_subset_png)
         merge_pdf(pwd_ale_formatted_gnm_tree_with_len_prefixed_png, pwd_gene_tree_treefile_subset_png, pwd_combined_image_with_ale_hgts)
+        n += 1
+
+        os.system('mv %s %s/annotation_files/' % (pwd_ale_formatted_gnm_tree_with_len_prefixed_png, ale_hgt_plot_dir))
+        os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_treefile_subset_png, ale_hgt_plot_dir))
+        os.system('mv %s %s/annotation_files/' % (pwd_gnm_tree_label_color_txt, ale_hgt_plot_dir))
+        os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_label_color_txt, ale_hgt_plot_dir))
+        os.system('mv %s %s/annotation_files/' % (pwd_itol_connection_txt, ale_hgt_plot_dir))
+    os.system('mv %s %s/annotation_files/' % (pwd_itol_label_txt, ale_hgt_plot_dir))
+    os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_itol_label_txt, ale_hgt_plot_dir))
+    os.system('mv %s %s/annotation_files/' % (pwd_itol_connection_txt_all, ale_hgt_plot_dir))
 
 
 ########################################################################################################################
@@ -573,17 +617,19 @@ hgt_freq_cutoff                 = 0.3
 num_threads                     = 10
 js_num_threads                  = 2
 interal_node_prefix             = 'IN'
-ale_splitter_py                 = '/home-user/wzsong/Tests/ALE/ALEtutorial/ale_splitter_modified.py'
 ignore_vertical_hgt             = True
 donor_node_min_leaf_num         = 5
 recipient_node_min_leaf_num     = 5
 d_color                         = '#FF0000'
 r_color                         = '#0000FF'
+ale_splitter_py                 = '/home-user/wzsong/Tests/ALE/ALEtutorial/ale_splitter_modified.py'
+dr_separator                    = '_to_'
+root_gene_tree_at_midpoint      = True
 
 # file out
 op_dir                          = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/op_qualified_OGs'
 gene_tree_dir                   = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/op_qualified_OGs_gene_tree_dir'
-genome_tree_file_rooted         = '%s/concatenated_rooted.treefile'                                                 % op_dir
+genome_tree_file_rooted         = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/concatenated_rooted.treefile'
 ale_wd                          = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_wd'
 ale_op_dir                      = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_op_dir'
 ale_hgt_plot_dir                = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/ale_hgt_plot_dir'
@@ -596,10 +642,10 @@ extract_sequence                = False
 prepare_ale_input_files         = False
 
 # specify OGs to process
-# designate_ogs                   = ['OG0000006', 'OG0000007', 'OG0000011', 'OG0000012', 'OG0000014', 'OG0000015', 'OG0000017']
-designate_ogs                   = next(os.walk(gene_tree_dir))[1]
-#designate_ogs                   = ['OG0000408']
-designate_ogs = [i.strip() for i in open('/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/interestong_OGs.txt')]
+# designate_ogs = ['OG0000006', 'OG0000007', 'OG0000011', 'OG0000012', 'OG0000014', 'OG0000015', 'OG0000017']
+designate_ogs   = next(os.walk(gene_tree_dir))[1]
+designate_ogs   = [i.strip() for i in open('/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/interestong_OGs.txt')]
+#designate_ogs   = ['OG0000016', 'OG0000032']
 
 '''
 The number of orthogroups spanning >= 50 genomes and >= 2 phyla is 763.
@@ -744,7 +790,7 @@ if prepare_ale_input_files is True:
 if os.path.isdir(ale_hgt_plot_dir) is True:
     os.system('rm -r %s' % ale_hgt_plot_dir)
 os.system('mkdir %s' % ale_hgt_plot_dir)
-os.system('mkdir %s/without_HGT' % ale_hgt_plot_dir)
+os.system('mkdir %s/annotation_files' % ale_hgt_plot_dir)
 
 # parse ALE output
 n = 1
@@ -752,14 +798,9 @@ for qualified_og in og_to_process:
     print('%s (%s/%s): Parsing ALE outputs' % (qualified_og, n, len(og_to_process)))
     current_arg_list = [qualified_og, gene_tree_dir, ale_wd, ale_op_dir, ale_hgt_plot_dir, interal_node_prefix,
                         gnm_pco_dict, d_color, r_color, project_name, API_key, display_mode, hgt_freq_cutoff,
-                        ignore_leaf_hgt, ignore_vertical_hgt, donor_node_min_leaf_num, recipient_node_min_leaf_num]
+                        ignore_leaf_hgt, ignore_vertical_hgt, donor_node_min_leaf_num, recipient_node_min_leaf_num,
+                        dr_separator, root_gene_tree_at_midpoint]
     parse_ale_op_worker(current_arg_list)
     n += 1
 
 ########################################################################################################################
-
-
-
-
-
-
