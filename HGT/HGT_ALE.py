@@ -1,4 +1,7 @@
 import os
+import math
+import random
+import seaborn as sns
 from Bio import SeqIO
 from ete3 import Tree
 from PIL import Image
@@ -128,20 +131,17 @@ def merge_image(image_file_list, output_image):
     new_im.save(output_image)
 
 
-def merge_pdf(pdf_1, pdf_2, op_pdf):
+def merge_pdf(pdf_1, pdf_2, margin_size, op_pdf):
 
     page1 = PdfFileReader(open(pdf_1, "rb"), strict=False).getPage(0)
     page2 = PdfFileReader(open(pdf_2, "rb"), strict=False).getPage(0)
 
-    total_width = page1.mediaBox.upperRight[0] + page2.mediaBox.upperRight[0]
-    total_height = max([page1.mediaBox.upperRight[1], page2.mediaBox.upperRight[1]])
+    total_width  = page1.mediaBox.upperRight[0] + page2.mediaBox.upperRight[0] + margin_size*3
+    total_height = max([page1.mediaBox.upperRight[1], page2.mediaBox.upperRight[1]]) + margin_size*2
 
     new_page = PageObject.createBlankPage(None, total_width, total_height)
-
-    # Add first page at the 0,0 position
-    new_page.mergePage(page1)
-    # Add second page with moving along the axis x
-    new_page.mergeTranslatedPage(page2, page1.mediaBox.upperRight[0], 0)
+    new_page.mergeTranslatedPage(page1, margin_size, (total_height-margin_size-page1.mediaBox.upperRight[1]))
+    new_page.mergeTranslatedPage(page2, (page1.mediaBox.upperRight[0] + margin_size*2), margin_size)
 
     output = PdfFileWriter()
     output.addPage(new_page)
@@ -272,11 +272,11 @@ def itol_tree(tree_file, annotation_file_list, project_name, APIkey, display_mod
     itol_exporter.set_export_param_value('datasets_visible', datasets_visible_str)
     itol_exporter.set_export_param_value('display_mode', display_mode)
     itol_exporter.set_export_param_value('range_mode', '2')
-    itol_exporter.set_export_param_value('dashed_lines', '0')
+    itol_exporter.set_export_param_value('dashed_lines', '1')
     # itol_exporter.set_export_param_value('current_font_size', '96')
     itol_exporter.set_export_param_value('line_width', '3')
-    # itol_exporter.set_export_param_value('vertical_shift_factor', '3')
-    # itol_exporter.set_export_param_value('horizontal_scale_factor', '3')
+    itol_exporter.set_export_param_value('vertical_shift_factor', '0.9')
+    itol_exporter.set_export_param_value('horizontal_scale_factor', '0.9')
     itol_exporter.set_export_param_value('format', op_plot_ext)
     itol_exporter.export(op_plot)
 
@@ -361,6 +361,100 @@ def root_at_midpoint(tree_in, tree_in_rooted):
     midpoint = t.get_midpoint_outgroup()
     t.set_outgroup(midpoint)
     t.write(outfile=tree_in_rooted)
+
+
+def get_color_list(color_num):
+    if color_num <= 8:
+        color_list_combined = ['#3787c0', '#39399f', '#ffb939', '#399f39', '#9f399f', '#fb694a', '#9f9f39', '#959595']
+
+    elif 8 < color_num <= 16:
+        color_list_combined = ['#2b7bba', '#89bedc', '#2e2e99', '#8a8acc', '#ffa500', '#ffc55c', '#2e992e', '#8acc8a',
+                               '#992e99', '#cc8acc', '#d52221', '#fc8161', '#99992e', '#cccc8a', '#5c5c5c', '#adadad']
+
+    else:
+        color_num_each = math.ceil(color_num / 8) + 2
+        color_list_1 = sns.color_palette('Blues', n_colors=color_num_each).as_hex()
+        color_list_2 = sns.light_palette('navy', n_colors=color_num_each).as_hex()
+        color_list_3 = sns.light_palette('orange', n_colors=color_num_each).as_hex()
+        color_list_4 = sns.light_palette('green', n_colors=color_num_each).as_hex()
+        color_list_5 = sns.light_palette('purple', n_colors=color_num_each).as_hex()
+        color_list_6 = sns.color_palette('Reds', n_colors=color_num_each).as_hex()
+        color_list_7 = sns.light_palette('olive', n_colors=color_num_each).as_hex()
+        color_list_8 = sns.color_palette('Greys', n_colors=color_num_each).as_hex()
+
+        color_list_combined = []
+        for color_list in [color_list_1, color_list_2, color_list_3, color_list_4, color_list_5, color_list_6,
+                           color_list_7, color_list_8]:
+            for color in color_list[2:][::-1]:
+                color_list_combined.append(color)
+
+    color_list_to_return = random.sample(color_list_combined, color_num)
+
+    color_list_to_return_sorted = []
+    for color_to_return in color_list_combined:
+        if color_to_return in color_list_to_return:
+            color_list_to_return_sorted.append(color_to_return)
+
+    return color_list_to_return_sorted
+
+
+def scale_str_to_size_list(scale_str):
+    scale_list = scale_str.split('-')
+    scale_list = [float(i) for i in scale_list]
+
+    shape_size_list = []
+    if scale_list[0] == 0:
+        shape_size_list = [0]
+        for each_value in scale_list[1:-1]:
+            current_size = each_value / scale_list[-1]
+            shape_size_list.append(current_size)
+        shape_size_list.append(1)
+
+    if scale_list[0] != 0:
+        shape_size_list = [0.1]
+        interval_num = len(scale_list) - 1
+        interval_value = (1 - 0.1) / interval_num
+        n = 1
+        for each_value in scale_list[1:-1]:
+            shape_size_list.append(interval_value * n + 0.1)
+            n += 1
+        shape_size_list.append(1)
+
+    return shape_size_list
+
+
+def iTOL(Leaf_to_Group_dict, Group_to_Color_dict, FileOut):
+
+    Group_set = set()
+    for each_leaf in Leaf_to_Group_dict:
+        Group_set.add(Leaf_to_Group_dict[each_leaf])
+
+    if len(Group_to_Color_dict) == 0:
+        Group_to_Color_dict = dict(zip(Group_set, get_color_list(len(Group_set))))
+    else:
+        group_without_color_list = []
+        for each_group in Group_set:
+            if each_group not in Group_to_Color_dict:
+                group_without_color_list.append(each_group)
+        if len(group_without_color_list) > 0:
+            color_list_unprovided = get_color_list(len(group_without_color_list))
+            Group_to_Color_dict_unprovided = dict(zip(group_without_color_list, color_list_unprovided))
+            for each_group in Group_to_Color_dict_unprovided:
+                Group_to_Color_dict[each_group] = Group_to_Color_dict_unprovided[each_group]
+
+    FileOut_handle = open(FileOut, 'w')
+    FileOut_handle.write('DATASET_COLORSTRIP\n')
+    FileOut_handle.write('SEPARATOR TAB\n')
+    FileOut_handle.write('DATASET_LABEL\tTaxonomy\n')
+    FileOut_handle.write('\n# customize strip attributes here\n')
+    FileOut_handle.write('STRIP_WIDTH\t100\n')
+    FileOut_handle.write('MARGIN\t20\n')
+    FileOut_handle.write('\n# provide data here\nDATA\n')
+    for leaf in Leaf_to_Group_dict:
+        leaf_group = Leaf_to_Group_dict[leaf]
+        leaf_color = Group_to_Color_dict[leaf_group]
+        FileOut_handle.write('%s\t%s\t%s\n' % (leaf, leaf_color, leaf_group))
+    FileOut_handle.close()
 
 
 def prepare_ale_ip_worker(arg_list):
@@ -474,6 +568,7 @@ def parse_ale_op_worker(arg_list):
     recipient_node_min_leaf_num = arg_list[16]
     dr_separator                = arg_list[17]
     root_gene_tree_at_midpoint  = arg_list[18]
+    p_color_txt                 = arg_list[19]
 
     gene_tree_treefile                                  = '%s.treefile'                                         % qualified_og
     genome_tree_file_subset_for_ale                     = '%s_genome_tree_for_ALE.treefile'                     % qualified_og
@@ -488,7 +583,8 @@ def parse_ale_op_worker(arg_list):
     gene_tree_itol_label_txt                            = '%s_iTOL_gene_pco.txt'                                % qualified_og
     gene_tree_treefile_subset                           = '%s_subset.treefile'                                  % qualified_og
     gene_tree_treefile_subset_midpoint_rooted           = '%s_subset_midpoint_rooted.treefile'                  % qualified_og
-
+    gene_tree_itol_colorstrip_txt                       = '%s_iTOL_colorstrip_gene.txt'                         % qualified_og
+    genome_tree_itol_colorstrip_txt                     = '%s_iTOL_colorstrip_genome.txt'                       % qualified_og
     pwd_gene_tree_treefile_subset                       = '%s/%s/%s'                                            % (gene_tree_dir, qualified_og, gene_tree_treefile_subset)
     pwd_gene_tree_treefile_subset_midpoint_rooted       = '%s/%s'                                               % (ale_op_dir, gene_tree_treefile_subset_midpoint_rooted)
     pwd_gene_tree_treefile                              = '%s/%s/%s'                                            % (gene_tree_dir, qualified_og, gene_tree_treefile)
@@ -501,6 +597,16 @@ def parse_ale_op_worker(arg_list):
     pwd_ale_formatted_gnm_tree                          = '%s/%s'                                               % (ale_op_dir, ale_formatted_gnm_tree)
     pwd_ale_formatted_gnm_tree_with_len                 = '%s/%s'                                               % (ale_op_dir, ale_formatted_gnm_tree_with_len)
     pwd_ale_formatted_gnm_tree_with_len_prefixed        = '%s/%s'                                               % (ale_op_dir, ale_formatted_gnm_tree_with_len_prefixed)
+    pwd_gene_tree_itol_colorstrip_txt                   = '%s/%s'                                               % (ale_hgt_plot_dir, gene_tree_itol_colorstrip_txt)
+    pwd_genome_tree_itol_colorstrip_txt                 = '%s/%s'                                               % (ale_hgt_plot_dir, genome_tree_itol_colorstrip_txt)
+
+    # read in phylum color
+    p_color_dict = dict()
+    for each_line in open(p_color_txt):
+        each_line_split = each_line.strip().split('\t')
+        phylum_id = each_line_split[1]
+        color_id = each_line_split[0]
+        p_color_dict[phylum_id] = color_id
 
     internal_node_to_leaf_dict = dict()
     paired_donor_to_recipient_leaf_dict = dict()
@@ -522,23 +628,30 @@ def parse_ale_op_worker(arg_list):
     # prefix_internal_nodes of combined tree
     prefix_internal_nodes(pwd_ale_formatted_gnm_tree_with_len, interal_node_prefix, pwd_ale_formatted_gnm_tree_with_len_prefixed)
 
-    # write out iTOL label file for gene and genome tree
+    # write out iTOL label file for gene and genome tree, also colorstrip for taxonomy
     pwd_itol_label_txt_handle  = open(pwd_itol_label_txt, 'w')
     pwd_itol_label_txt_handle.write('LABELS\nSEPARATOR TAB\n\nDATA\n')
     pwd_gene_tree_itol_label_txt_handle = open(pwd_gene_tree_itol_label_txt, 'w')
     pwd_gene_tree_itol_label_txt_handle.write('LABELS\nSEPARATOR TAB\n\nDATA\n')
     wrote_gnm_set = set()
+    gene_to_p_dict = dict()
+    genome_to_p_dict = dict()
     for each_gene in Tree(pwd_gene_tree_treefile).get_leaf_names():
         gene_gnm = each_gene.split('.gtdb')[0]
-        gene_name_for_ale = gene_gnm
-        gene_name_for_ale = gene_name_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF')
-        gene_with_taxon = gnm_pco_dict[gene_gnm]
+        genome_name_for_ale = gene_gnm
+        genome_name_for_ale = genome_name_for_ale.replace('GCA_', 'GCA').replace('GCF_', 'GCF')
+        genome_with_taxon = gnm_pco_dict[gene_gnm]
+        gene_to_p_dict[each_gene] = genome_with_taxon.split('__')[0]
         if gene_gnm not in wrote_gnm_set:
-            pwd_itol_label_txt_handle.write('%s\t%s\n' % (gene_name_for_ale, gene_with_taxon))
+            genome_to_p_dict[genome_name_for_ale] = genome_with_taxon.split('__')[0]
+            pwd_itol_label_txt_handle.write('%s\t%s\n' % (genome_name_for_ale, genome_with_taxon))
             wrote_gnm_set.add(gene_gnm)
-        pwd_gene_tree_itol_label_txt_handle.write('%s\t%s_%s\n' % (each_gene, gene_with_taxon, each_gene.split('_')[-1]))
+        pwd_gene_tree_itol_label_txt_handle.write('%s\t%s_%s\n' % (each_gene, genome_with_taxon, each_gene.split('_')[-1]))
     pwd_itol_label_txt_handle.close()
     pwd_gene_tree_itol_label_txt_handle.close()
+
+    iTOL(gene_to_p_dict, p_color_dict, pwd_gene_tree_itol_colorstrip_txt)
+    iTOL(genome_to_p_dict, p_color_dict, pwd_genome_tree_itol_colorstrip_txt)
 
     # root gene tree at midpoint
     gene_tree_to_plot = pwd_gene_tree_treefile_subset
@@ -557,9 +670,9 @@ def parse_ale_op_worker(arg_list):
         pwd_gnm_tree_label_color_txt                        = '%s/%s_iTOL_label_color_genome_%s.txt'    % (ale_hgt_plot_dir, qualified_og, each_d2r)
         pwd_gene_tree_label_color_txt                       = '%s/%s_iTOL_label_color_gene_%s.txt'      % (ale_hgt_plot_dir, qualified_og, each_d2r)
         pwd_itol_connection_txt                             = '%s/%s_iTOL_connection_%s.txt'            % (ale_hgt_plot_dir, qualified_og, each_d2r)
-        pwd_ale_formatted_gnm_tree_with_len_prefixed_png    = '%s/%s_genome_tree_with_HGT_%s.pdf'       % (ale_wd, qualified_og, each_d2r)
-        pwd_gene_tree_treefile_subset_png                   = '%s/%s_subset_%s.pdf'                     % (ale_hgt_plot_dir, qualified_og, each_d2r)
-        pwd_gene_tree_treefile_subset_png_rooted            = '%s/%s_subset_%s_rooted.pdf'              % (ale_hgt_plot_dir, qualified_og, each_d2r)
+        pwd_ale_formatted_gnm_tree_with_len_prefixed_pdf    = '%s/%s_genome_tree_with_HGT_%s.pdf'       % (ale_wd, qualified_og, each_d2r)
+        pwd_gene_tree_treefile_subset_pdf                   = '%s/%s_subset_%s.pdf'                     % (ale_hgt_plot_dir, qualified_og, each_d2r)
+        pwd_gene_tree_treefile_subset_pdf_rooted            = '%s/%s_subset_%s_rooted.pdf'              % (ale_hgt_plot_dir, qualified_og, each_d2r)
         pwd_combined_image_with_ale_hgts                    = '%s/%s_HGT_%s_%s_%s.pdf'                  % (ale_hgt_plot_dir, qualified_og, n, each_d2r, each_d2r_freq)
 
         # write out gnm_tree_label_color_txt
@@ -569,7 +682,7 @@ def parse_ale_op_worker(arg_list):
         pwd_gnm_tree_label_color_txt_handle.write('%s\tlabel\tclade\t%s\t1\tnormal\n' % (each_d2r.split(dr_separator)[1], r_color))
         pwd_gnm_tree_label_color_txt_handle.close()
 
-        # write out iTOL label file for gene and genome tree
+        # write out iTOL label file for gene and genome tree, also colorstrip for taxonomy
         pwd_gene_tree_label_color_txt_handle = open(pwd_gene_tree_label_color_txt, 'w')
         pwd_gene_tree_label_color_txt_handle.write('DATASET_STYLE\nSEPARATOR TAB\nDATASET_LABEL\texample_style\nCOLOR\t#ffff00\n\nDATA\n')
         for each_gene in Tree(pwd_gene_tree_treefile).get_leaf_names():
@@ -581,19 +694,21 @@ def parse_ale_op_worker(arg_list):
                 pwd_gene_tree_label_color_txt_handle.write('%s\tlabel\tnode\t%s\t1\tnormal\n' % (each_gene, r_color))
         pwd_gene_tree_label_color_txt_handle.close()
 
-        itol_tree(pwd_ale_formatted_gnm_tree_with_len_prefixed, [pwd_gnm_tree_label_color_txt, pwd_itol_label_txt, pwd_itol_connection_txt], project_name, API_key, display_mode, pwd_ale_formatted_gnm_tree_with_len_prefixed_png)
-        itol_tree(gene_tree_to_plot, [pwd_gene_tree_itol_label_txt, pwd_gene_tree_label_color_txt], project_name, API_key, display_mode, pwd_gene_tree_treefile_subset_png)
-        merge_pdf(pwd_ale_formatted_gnm_tree_with_len_prefixed_png, pwd_gene_tree_treefile_subset_png, pwd_combined_image_with_ale_hgts)
+        itol_tree(pwd_ale_formatted_gnm_tree_with_len_prefixed, [pwd_gnm_tree_label_color_txt, pwd_itol_label_txt, pwd_itol_connection_txt, pwd_genome_tree_itol_colorstrip_txt], project_name, API_key, display_mode, pwd_ale_formatted_gnm_tree_with_len_prefixed_pdf)
+        itol_tree(gene_tree_to_plot, [pwd_gene_tree_itol_label_txt, pwd_gene_tree_label_color_txt, pwd_gene_tree_itol_colorstrip_txt], project_name, API_key, display_mode, pwd_gene_tree_treefile_subset_pdf)
+        merge_pdf(pwd_ale_formatted_gnm_tree_with_len_prefixed_pdf, pwd_gene_tree_treefile_subset_pdf, 66, pwd_combined_image_with_ale_hgts)
         n += 1
 
-        os.system('mv %s %s/annotation_files/' % (pwd_ale_formatted_gnm_tree_with_len_prefixed_png, ale_hgt_plot_dir))
-        os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_treefile_subset_png, ale_hgt_plot_dir))
+        os.system('mv %s %s/annotation_files/' % (pwd_ale_formatted_gnm_tree_with_len_prefixed_pdf, ale_hgt_plot_dir))
+        os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_treefile_subset_pdf, ale_hgt_plot_dir))
         os.system('mv %s %s/annotation_files/' % (pwd_gnm_tree_label_color_txt, ale_hgt_plot_dir))
         os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_label_color_txt, ale_hgt_plot_dir))
         os.system('mv %s %s/annotation_files/' % (pwd_itol_connection_txt, ale_hgt_plot_dir))
     os.system('mv %s %s/annotation_files/' % (pwd_itol_label_txt, ale_hgt_plot_dir))
     os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_itol_label_txt, ale_hgt_plot_dir))
     os.system('mv %s %s/annotation_files/' % (pwd_itol_connection_txt_all, ale_hgt_plot_dir))
+    os.system('mv %s %s/annotation_files/' % (pwd_gene_tree_itol_colorstrip_txt, ale_hgt_plot_dir))
+    os.system('mv %s %s/annotation_files/' % (pwd_genome_tree_itol_colorstrip_txt, ale_hgt_plot_dir))
 
 
 ########################################################################################################################
@@ -605,6 +720,7 @@ taxon_for_MetaCHIP_txt          = '%s/taxon_for_MetaCHIP.txt'                   
 combined_faa                    = '%s/Archaea_133_HGT_pc_pc_combined_faa.fasta'                         % wd
 genome_tree_file                = '%s/concatenated.treefile'                                            % wd
 outgroup                        = '%s/out_group.txt'                                                    % wd
+ar_phylum_color_code_txt        = '/Users/songweizhi/Desktop/DateArTree/ar_phylum_color_code.txt'
 min_og_genome_num               = 50
 min_og_phylum_num               = 2
 align_leaf_name                 = True
@@ -799,7 +915,7 @@ for qualified_og in og_to_process:
     current_arg_list = [qualified_og, gene_tree_dir, ale_wd, ale_op_dir, ale_hgt_plot_dir, interal_node_prefix,
                         gnm_pco_dict, d_color, r_color, project_name, API_key, display_mode, hgt_freq_cutoff,
                         ignore_leaf_hgt, ignore_vertical_hgt, donor_node_min_leaf_num, recipient_node_min_leaf_num,
-                        dr_separator, root_gene_tree_at_midpoint]
+                        dr_separator, root_gene_tree_at_midpoint, ar_phylum_color_code_txt]
     parse_ale_op_worker(current_arg_list)
     n += 1
 
