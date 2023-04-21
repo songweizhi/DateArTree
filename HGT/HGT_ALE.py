@@ -715,32 +715,36 @@ def parse_ale_op_worker(arg_list):
 
 # file in
 wd                              = '/Users/songweizhi/Desktop/DateArTree/0_HGT_MetaCHIP'
-orthogroups_op_txt              = '%s/Orthogroups.txt'                                                  % wd
-taxon_for_MetaCHIP_txt          = '%s/taxon_for_MetaCHIP.txt'                                           % wd
-combined_faa                    = '%s/Archaea_133_HGT_pc_pc_combined_faa.fasta'                         % wd
-genome_tree_file                = '%s/concatenated.treefile'                                            % wd
-outgroup                        = '%s/out_group.txt'                                                    % wd
+orthogroups_op_txt              = '%s/Orthogroups.txt'                                              % wd
+genome_taxon_txt                = '%s/taxon_for_MetaCHIP.txt'                                       % wd
+combined_faa                    = '%s/Archaea_133_HGT_pc_pc_combined_faa.fasta'                     % wd
+genome_tree_file                = '%s/concatenated.treefile'                                        % wd
+outgroup                        = '%s/out_group.txt'                                                % wd
 ar_phylum_color_code_txt        = '/Users/songweizhi/Desktop/DateArTree/ar_phylum_color_code.txt'
-min_og_genome_num               = 50
-min_og_phylum_num               = 2
-align_leaf_name                 = True
-show_scale                      = False
-ignore_leaf_hgt                 = True
-project_name                    = 'batch_access_tmp'
-API_key                         = 'S1kZZuDHc0d5M7J5vLnUNQ'
-display_mode                    = '1'  # 1=rectangular, 2=circular, 3=unrooted
-hgt_freq_cutoff                 = 0.3
+min_og_genome_num               = 50                        # filter OG groups
+min_og_phylum_num               = 2                         # filter OG groups
+hgt_freq_cutoff                 = 0.3                       # filter ALE predicted HGTs
+ignore_vertical_hgt             = True                      # filter ALE predicted HGTs
+donor_node_min_leaf_num         = 5                         # filter ALE predicted HGTs
+recipient_node_min_leaf_num     = 5                         # filter ALE predicted HGTs
+ignore_leaf_hgt                 = True                      # filter ALE predicted HGTs
+interal_node_prefix             = 'IN'                      # plot tree with HGT
+API_key                         = 'S1kZZuDHc0d5M7J5vLnUNQ'  # plot tree with HGT
+project_name                    = 'batch_access_tmp'        # plot tree with HGT
+display_mode                    = '1'                       # plot tree with HGT, 1=rectangular, 2=circular, 3=unrooted
+align_leaf_name                 = True                      # plot tree with HGT
+show_scale                      = False                     # plot tree with HGT
+d_color                         = '#FF0000'                 # plot tree with HGT
+r_color                         = '#0000FF'                 # plot tree with HGT
+dr_separator                    = '_to_'                    # plot tree with HGT
+root_gene_tree_at_midpoint      = True                      # plot tree with HGT
 num_threads                     = 10
 js_num_threads                  = 2
-interal_node_prefix             = 'IN'
-ignore_vertical_hgt             = True
-donor_node_min_leaf_num         = 5
-recipient_node_min_leaf_num     = 5
-d_color                         = '#FF0000'
-r_color                         = '#0000FF'
 ale_splitter_py                 = '/home-user/wzsong/Tests/ALE/ALEtutorial/ale_splitter_modified.py'
-dr_separator                    = '_to_'
-root_gene_tree_at_midpoint      = True
+force_create_op_dir             = True
+force_create_ale_wd             = True
+extract_sequence                = False
+prepare_ale_input_files         = False
 
 # file out
 op_dir                          = '/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/op_qualified_OGs'
@@ -752,16 +756,10 @@ ale_hgt_plot_dir                = '/Users/songweizhi/Desktop/DateArTree/0_HGT_AL
 
 ########################################################################################################################
 
-force_create_op_dir             = True
-force_create_ale_wd             = True
-extract_sequence                = False
-prepare_ale_input_files         = False
-
 # specify OGs to process
-# designate_ogs = ['OG0000006', 'OG0000007', 'OG0000011', 'OG0000012', 'OG0000014', 'OG0000015', 'OG0000017']
-designate_ogs   = next(os.walk(gene_tree_dir))[1]
-designate_ogs   = [i.strip() for i in open('/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/interestong_OGs.txt')]
-#designate_ogs   = ['OG0000016', 'OG0000032']
+# designate_ogs = next(os.walk(gene_tree_dir))[1]
+designate_ogs = [i.strip() for i in open('/Users/songweizhi/Desktop/DateArTree/0_HGT_ALE/interestong_OGs.txt')]
+# designate_ogs = ['OG0000016', 'OG0000032']
 
 '''
 The number of orthogroups spanning >= 50 genomes and >= 2 phyla is 763.
@@ -783,7 +781,7 @@ gnm_p_dict = dict()
 gnm_c_dict = dict()
 gnm_o_dict = dict()
 gnm_pco_dict = dict()
-for each_gnm in open(taxon_for_MetaCHIP_txt):
+for each_gnm in open(genome_taxon_txt):
     each_gnm_split = each_gnm.strip().split('\t')
     gnm_id     = each_gnm_split[0]
     taxon_str  = each_gnm_split[1]
